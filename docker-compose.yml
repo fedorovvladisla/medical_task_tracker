@@ -1,7 +1,6 @@
-version: '3.8'
 services:
   db:
-    image: postgres:18
+    image: postgres:16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -20,6 +19,8 @@ services:
     depends_on:
       - db
     environment:
+      RAILS_ENV: development
+      SECRET_KEY_BASE: secret_key_1234567890
       DATABASE_URL: postgres://postgres:password@db:5432/medical_task_tracker_development
 volumes:
   postgres_data:
