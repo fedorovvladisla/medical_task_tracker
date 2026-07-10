@@ -1,0 +1,343 @@
+openapi: 3.0.0
+info:
+  title: MedTaskTracker API
+  description: API для управления задачами, тегами и повторениями в медицинской системе
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Локальный сервер разработки
+
+paths:
+  /tasks:
+    get:
+      summary: Получить список задач
+      description: Возвращает все задачи с фильтрацией по датам, статусу и тегам.
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Начало диапазона (по умолчанию – начало текущего месяца)
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Конец диапазона (по умолчанию – конец текущего месяца)
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, completed, cancelled]
+          description: Фильтр по статусу задачи
+        - name: tag_id
+          in: query
+          schema:
+            type: integer
+          description: Фильтр по ID тега
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskWithOccurrences'
+    post:
+      summary: Создать новую задачу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        '201':
+          description: Задача создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '422':
+          description: Ошибка валидации
+
+  /tasks/{id}:
+    get:
+      summary: Получить задачу по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Начало диапазона для генерации экземпляров
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Конец диапазона
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskWithOccurrences'
+        '404':
+          description: Задача не найдена
+    patch:
+      summary: Обновить задачу
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '422':
+          description: Ошибка валидации
+        '404':
+          description: Задача не найдена
+    delete:
+      summary: Удалить задачу
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Удалено
+        '404':
+          description: Задача не найдена
+
+  /tasks/{task_id}/tags:
+    post:
+      summary: Добавить тег к задаче
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tag_id:
+                  type: integer
+              required:
+                - tag_id
+      responses:
+        '201':
+          description: Тег добавлен
+        '404':
+          description: Задача или тег не найдены
+        '422':
+          description: Тег уже добавлен или ошибка
+
+  /tasks/{task_id}/tags/{id}:
+    delete:
+      summary: Удалить тег у задачи
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Тег удалён
+        '404':
+          description: Тег не найден у этой задачи
+
+  /tasks/{task_id}/occurrences/{date}:
+    patch:
+      summary: Обновить статус экземпляра на конкретную дату
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Дата, для которой меняем статус (YYYY-MM-DD)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [pending, in_progress, completed, cancelled]
+                overridden_date:
+                  type: string
+                  format: date
+                  description: Новая дата выполнения (если переносим)
+      responses:
+        '200':
+          description: Статус обновлён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: integer
+                  date:
+                    type: string
+                    format: date
+                  status:
+                    type: string
+                  overridden_date:
+                    type: string
+                    format: date
+                  effective_date:
+                    type: string
+                    format: date
+        '404':
+          description: Задача не найдена
+        '422':
+          description: Ошибка валидации
+
+components:
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed, cancelled]
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        recurrence_type:
+          type: string
+          enum: [daily, monthly, specific_dates, even_odd]
+          nullable: true
+        recurrence_interval:
+          type: integer
+          nullable: true
+        recurrence_day_of_month:
+          type: integer
+          nullable: true
+        recurrence_dates:
+          type: array
+          items:
+            type: string
+            format: date
+          nullable: true
+        recurrence_even_odd:
+          type: integer
+          enum: [0, 1]
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Occurrence:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [pending, in_progress, completed, cancelled]
+        overridden:
+          type: boolean
+        overridden_date:
+          type: string
+          format: date
+          nullable: true
+    TaskWithOccurrences:
+      allOf:
+        - $ref: '#/components/schemas/Task'
+        - type: object
+          properties:
+            occurrences:
+              type: array
+              items:
+                $ref: '#/components/schemas/Occurrence'
+    TaskInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed, cancelled]
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        recurrence_type:
+          type: string
+          enum: [daily, monthly, specific_dates, even_odd]
+        recurrence_interval:
+          type: integer
+        recurrence_day_of_month:
+          type: integer
+        recurrence_dates:
+          type: array
+          items:
+            type: string
+            format: date
+        recurrence_even_odd:
+          type: integer
+          enum: [0, 1]
+      required:
+        - title
+        - start_date
